@@ -1,0 +1,30 @@
+# ArduPilot parameter file — Raspi WiFi control bridge
+#
+# Load via Mission Planner / QGroundControl "Load from file", or
+# `param load drone.param` in MAVProxy. Review each value against
+# your actual FC before writing — this is a starting point, not gospel.
+#
+# --- UART2 (R2/T2) -> Raspi MAVLink2 link ---
+SERIAL2_PROTOCOL,2      # MAVLink2
+SERIAL2_BAUD,57         # 57600 baud; raise (e.g. 921 for 921600) later if telemetry rate needs it, matching Raspi-side config
+
+# --- GCS-loss failsafe: the sole safety net (no backup RC) ---
+FS_GCS_ENABLE,1         # 1 = RTL on heartbeat loss from Raspi (acting as GCS)
+                        # if no GPS fix, ArduPilot falls back to Land automatically
+FS_GCS_TIMEOUT,5        # seconds without heartbeat before failsafe triggers (tune down once link is proven reliable; do not go below what bench testing shows is safe)
+
+# --- Arming without RC receiver present ---
+RC_PROTOCOLS,-1         # keep RC protocol autodetect enabled; MAVLink arm/disarm command works regardless of RC presence
+ARMING_CHECK,1          # keep default full arming checks (1 = all); DO NOT disable RC check by excluding it here unless bench testing shows MAVLink-commanded arm is blocked with no RC input. Only relax specific bits after confirming which one blocks arming.
+
+# --- GPS required for RTL ---
+# No single param blocks arming on GPS fix by itself across all ArduPilot versions;
+# enforce "no GPS fix -> no arm" at the app layer (raspi backend must refuse to send
+# arm command if GPS_FIX_TYPE < 3). Leave ARMING_CHECK GPS bit enabled as a second net.
+
+# --- Geofence: extra safety net for single-link-of-failure design ---
+FENCE_ENABLE,1          # enable geofence subsystem
+FENCE_TYPE,7            # bitmask: 1=max alt, 2=circle, 4=polygon -> 7 = all
+FENCE_ALT_MAX,100       # meters; set to your legal/site limit
+FENCE_RADIUS,300        # meters; set to your site's safe radius
+FENCE_ACTION,1          # 1 = RTL on breach (match FS_GCS_ENABLE behavior)

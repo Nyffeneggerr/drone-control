@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Drone Control</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="status-bar" class="status status-disconnected">
+    <span id="status-text">DISCONNECTED</span>
+    <span id="link-text"></span>
+  </div>
+
+  <div id="hud">
+    <div class="hud-row"><span class="hud-label">Armed</span><span id="hud-armed" class="hud-value">--</span></div>
+    <div class="hud-row"><span class="hud-label">Mode</span><span id="hud-mode" class="hud-value">--</span></div>
+    <div class="hud-row"><span class="hud-label">Battery</span><span id="hud-battery" class="hud-value">--</span></div>
+    <div class="hud-row"><span class="hud-label">GPS</span><span id="hud-gps" class="hud-value">--</span></div>
+    <div class="hud-row"><span class="hud-label">Alt</span><span id="hud-alt" class="hud-value">--</span></div>
+  </div>
+
+  <div id="controls-top">
+    <button id="btn-arm" class="btn btn-arm">ARM</button>
+    <button id="btn-disarm" class="btn btn-disarm">DISARM</button>
+    <select id="mode-select" class="btn">
+      <option value="STABILIZE">STABILIZE</option>
+      <option value="ALT_HOLD">ALT_HOLD</option>
+      <option value="LOITER">LOITER</option>
+      <option value="GUIDED">GUIDED</option>
+      <option value="RTL">RTL</option>
+      <option value="LAND">LAND</option>
+    </select>
+  </div>
+
+  <div id="sticks">
+    <canvas id="stick-left" class="stick" width="200" height="200"></canvas>
+    <canvas id="stick-right" class="stick" width="200" height="200"></canvas>
+  </div>
+
+  <div id="gamepad-indicator" class="hidden">Gamepad connected — virtual sticks disabled</div>
+
+  <script src="joystick.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
