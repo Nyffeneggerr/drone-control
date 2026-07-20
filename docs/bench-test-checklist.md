@@ -6,9 +6,9 @@ Props OFF for all steps below unless explicitly noted otherwise. This checklist 
 
 - [ ] FC parameters loaded from `firmware-config/drone.param`, reviewed against actual FC (baud, fence radius/alt for your site).
 - [ ] Wiring per `docs/wiring.md` confirmed with a multimeter continuity check before power-on.
-- [ ] `python3 raspi/bench_test.py --port /dev/serial0 --baud 57600` connects, prints heartbeat from FC.
-- [ ] Telemetry (`GPS_RAW_INT`, `SYS_STATUS`, `VFR_HUD`) visible in script output.
-- [ ] Arm refused while GPS fix_type < 3 (script default behavior) — confirm the refusal path actually triggers by testing indoors/no-fix.
+- [x] `python3 raspi/bench_test.py --port /dev/serial0 --baud 57600` connects, prints heartbeat from FC. (2026-07-20: confirmed, heartbeat `{type: 2, autopilot: 3, ...}` received.)
+- [ ] Telemetry (`GPS_RAW_INT`, `SYS_STATUS`, `VFR_HUD`) visible in script output. **Not yet confirmed** — 2026-07-20 run only printed `HEARTBEAT` during the 5s sanity window, no `GPS_RAW_INT`/`SYS_STATUS`/`VFR_HUD` lines. Before relying on the GPS-fix gate below, check whether the FC is actually streaming these (e.g. `SRx_*`/`SR2_*` stream-rate params, or whether `mavutil` needs an explicit `REQUEST_DATA_STREAM`/`MAV_CMD_SET_MESSAGE_INTERVAL`) — a fix_type of 0 could mean "no fix" or "no `GPS_RAW_INT` ever received," and `bench_test.py`'s `get_gps_fix_type()` can't currently tell the two apart.
+- [x] Arm refused while GPS fix_type < 3 (script default behavior) — confirm the refusal path actually triggers by testing indoors/no-fix. (2026-07-20: confirmed, `Refusing to arm: GPS fix_type=0 (< 3D fix)` — see telemetry caveat above on whether this is a real no-fix or a missing stream.)
 - [ ] Arm succeeds outdoors with GPS fix (or via `--force-arm` indoors, motors disconnected/props off, for command-path testing only).
 - [ ] `--test-manual-control` sends neutral MANUAL_CONTROL for 3s without FC rejecting/disconnecting.
 - [ ] Disarm succeeds.

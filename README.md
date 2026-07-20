@@ -43,6 +43,8 @@ python3 bench_test.py --port /dev/serial0 --baud 57600
 ```
 Add `--test-manual-control` to also exercise MANUAL_CONTROL, `--force-arm` to skip the GPS-fix gate for command-path-only testing indoors. Full checklist: `docs/bench-test-checklist.md`. Do not skip the failsafe drill (`docs/failsafe-drill.md`) at this stage.
 
+**Status (2026-07-20):** link connects and the GPS-fix arm gate has been confirmed on-bench (see checklist). Not yet done: confirming `GPS_RAW_INT`/`SYS_STATUS`/`VFR_HUD` are actually streaming (only `HEARTBEAT` was observed so far — worth checking before trusting the fix-type reading), `--test-manual-control`, disarm, and the failsafe drill. See `docs/bench-test-checklist.md` for the live checklist.
+
 **Backend service** (WS bridge + serves the PWA):
 ```bash
 FC_PORT=/dev/serial0 FC_BAUD=57600 uvicorn server:app --host 0.0.0.0 --port 8000
