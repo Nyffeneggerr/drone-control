@@ -4,27 +4,59 @@
 # `param load drone.param` in MAVProxy. Review each value against
 # your actual FC before writing — this is a starting point, not gospel.
 #
-# --- UART2 (R2/T2) -> Raspi MAVLink2 link ---
-SERIAL2_PROTOCOL,2      # MAVLink2
-SERIAL2_BAUD,57         # 57600 baud; raise (e.g. 921 for 921600) later if telemetry rate needs it, matching Raspi-side config
+# NOTE: parameter lines must be bare `NAME,VALUE` with no trailing inline
+# comment — MAVProxy's (and Mission Planner's/QGC's) param-file parser
+# rejects lines with anything after the value, hence comments live on
+# their own lines above each parameter.
+
+# --- Airframe ---
+# FRAME_CLASS: 1 = Quad
+FRAME_CLASS,1
+# FRAME_TYPE: 1 = X
+FRAME_TYPE,1
+
+# --- UART3 (R3/T3) -> Raspi MAVLink2 link ---
+# 2026-07-21: moved off UART2 (R2/T2) after finding the FC's R2 pin
+# electrically damaged (idles at 2.6V instead of 3.3V) -- see docs/wiring.md.
+# SERIAL3_PROTOCOL: 2 = MAVLink2
+SERIAL3_PROTOCOL,2
+# SERIAL3_BAUD: 57600 baud; raise (e.g. 921 for 921600) later if telemetry
+# rate needs it, matching Raspi-side config
+SERIAL3_BAUD,57
 
 # --- GCS-loss failsafe: the sole safety net (no backup RC) ---
-FS_GCS_ENABLE,1         # 1 = RTL on heartbeat loss from Raspi (acting as GCS)
-                        # if no GPS fix, ArduPilot falls back to Land automatically
-FS_GCS_TIMEOUT,5        # seconds without heartbeat before failsafe triggers (tune down once link is proven reliable; do not go below what bench testing shows is safe)
+# FS_GCS_ENABLE: 1 = RTL on heartbeat loss from Raspi (acting as GCS);
+# if no GPS fix, ArduPilot falls back to Land automatically
+FS_GCS_ENABLE,1
+# FS_GCS_TIMEOUT: seconds without heartbeat before failsafe triggers (tune
+# down once link is proven reliable; do not go below what bench testing
+# shows is safe)
+FS_GCS_TIMEOUT,5
 
 # --- Arming without RC receiver present ---
-RC_PROTOCOLS,-1         # keep RC protocol autodetect enabled; MAVLink arm/disarm command works regardless of RC presence
-ARMING_CHECK,1          # keep default full arming checks (1 = all); DO NOT disable RC check by excluding it here unless bench testing shows MAVLink-commanded arm is blocked with no RC input. Only relax specific bits after confirming which one blocks arming.
+# RC_PROTOCOLS: keep RC protocol autodetect enabled; MAVLink arm/disarm
+# command works regardless of RC presence
+RC_PROTOCOLS,-1
+# ARMING_CHECK: keep default full arming checks (1 = all); DO NOT disable
+# RC check by excluding it here unless bench testing shows MAVLink-commanded
+# arm is blocked with no RC input. Only relax specific bits after confirming
+# which one blocks arming.
+ARMING_CHECK,1
 
 # --- GPS required for RTL ---
-# No single param blocks arming on GPS fix by itself across all ArduPilot versions;
-# enforce "no GPS fix -> no arm" at the app layer (raspi backend must refuse to send
-# arm command if GPS_FIX_TYPE < 3). Leave ARMING_CHECK GPS bit enabled as a second net.
+# No single param blocks arming on GPS fix by itself across all ArduPilot
+# versions; enforce "no GPS fix -> no arm" at the app layer (raspi backend
+# must refuse to send arm command if GPS_FIX_TYPE < 3). Leave ARMING_CHECK
+# GPS bit enabled as a second net.
 
 # --- Geofence: extra safety net for single-link-of-failure design ---
-FENCE_ENABLE,1          # enable geofence subsystem
-FENCE_TYPE,7            # bitmask: 1=max alt, 2=circle, 4=polygon -> 7 = all
-FENCE_ALT_MAX,100       # meters; set to your legal/site limit
-FENCE_RADIUS,300        # meters; set to your site's safe radius
-FENCE_ACTION,1          # 1 = RTL on breach (match FS_GCS_ENABLE behavior)
+# FENCE_ENABLE: enable geofence subsystem
+FENCE_ENABLE,1
+# FENCE_TYPE: bitmask: 1=max alt, 2=circle, 4=polygon -> 7 = all
+FENCE_TYPE,7
+# FENCE_ALT_MAX: meters; set to your legal/site limit
+FENCE_ALT_MAX,100
+# FENCE_RADIUS: meters; set to your site's safe radius
+FENCE_RADIUS,300
+# FENCE_ACTION: 1 = RTL on breach (match FS_GCS_ENABLE behavior)
+FENCE_ACTION,1
