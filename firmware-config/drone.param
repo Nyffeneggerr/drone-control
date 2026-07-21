@@ -42,6 +42,14 @@ RC_PROTOCOLS,-1
 # arm is blocked with no RC input. Only relax specific bits after confirming
 # which one blocks arming.
 ARMING_CHECK,1
+# FS_THR_ENABLE: the RC/throttle failsafe watches for RC receiver signal
+# specifically and disarms ("Radio Failsafe") when none is present — this
+# is a DIFFERENT failsafe than FS_GCS_ENABLE (MAVLink heartbeat loss, our
+# actual safety net). Confirmed 2026-07-21: with the factory default left
+# enabled, the FC armed successfully then immediately disarmed itself with
+# "Radio Failsafe - Disarming" since no RC receiver will ever be present.
+# Must be disabled; FS_GCS_ENABLE remains the sole failsafe for this design.
+FS_THR_ENABLE,0
 
 # --- GPS required for RTL ---
 # No single param blocks arming on GPS fix by itself across all ArduPilot

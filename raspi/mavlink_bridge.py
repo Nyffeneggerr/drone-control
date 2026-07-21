@@ -17,9 +17,10 @@ from pymavlink import mavutil
 
 HEARTBEAT_HZ = 1.0
 MANUAL_CONTROL_HZ = 30.0
-GPS_FIX_TYPE_3D = 3
 STALE_CONTROL_TIMEOUT_S = 0.5  # if browser stops sending, fall back to neutral/no-input rather than replay old sticks
 FC_HEARTBEAT_TIMEOUT_S = 3.0  # no HEARTBEAT from FC within this window -> report link down to the UI
+FORCE_DISARM_MAGIC = 21196  # ArduPilot's magic param2 value to force disarm past the landed-check
+DISARM_ACK_TIMEOUT_S = 3.0  # if a plain disarm isn't acked (or is rejected) within this window, force it
 
 
 @dataclass
@@ -61,6 +62,7 @@ class MavlinkBridge:
         self._pending_arm: Optional[bool] = None  # True=arm, False=disarm, set by caller, consumed by loop thread
         self._pending_mode: Optional[str] = None
         self._last_fc_heartbeat_rx: Optional[float] = None
+        self._disarm_ack_deadline: Optional[float] = None  # set while waiting to confirm a plain disarm landed
 
     # --- public API, called from the asyncio/WS side ---
 
@@ -117,6 +119,10 @@ class MavlinkBridge:
                 self._handle_arm_request(self._pending_arm)
                 self._pending_arm = None
 
+            if self._disarm_ack_deadline is not None and now > self._disarm_ack_deadline:
+                self._force_disarm()
+                self._disarm_ack_deadline = None
+
             if self._pending_mode is not None:
                 self._handle_mode_request(self._pending_mode)
                 self._pending_mode = None
@@ -143,11 +149,6 @@ class MavlinkBridge:
         self._conn.mav.manual_control_send(self._conn.target_system, x, y, z, r, 0)
 
     def _handle_arm_request(self, arm: bool) -> None:
-        if arm:
-            with self._lock:
-                fix_ok = self._telemetry.gps_fix_type >= GPS_FIX_TYPE_3D
-            if not fix_ok:
-                return  # refuse silently at bridge level; server layer should have already told the client why
         self._conn.mav.command_long_send(
             self._conn.target_system,
             self._conn.target_component,
@@ -155,6 +156,20 @@ class MavlinkBridge:
             0,
             1 if arm else 0,
             0, 0, 0, 0, 0, 0,
+        )
+        # a fresh arm supersedes any still-pending disarm-ack tracking, so a stale ack
+        # (or the timeout fallback) can't force-disarm after the operator re-armed
+        self._disarm_ack_deadline = time.time() + DISARM_ACK_TIMEOUT_S if not arm else None
+
+    def _force_disarm(self) -> None:
+        # ArduPilot refuses a plain disarm if it doesn't yet trust the vehicle is landed
+        # (e.g. right after throttle was applied); param2=FORCE_DISARM_MAGIC overrides that.
+        self._conn.mav.command_long_send(
+            self._conn.target_system,
+            self._conn.target_component,
+            mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+            0,
+            0, FORCE_DISARM_MAGIC, 0, 0, 0, 0, 0,
         )
 
     def _handle_mode_request(self, mode: str) -> None:
@@ -179,6 +194,8 @@ class MavlinkBridge:
 
     def _apply_message(self, msg) -> bool:
         msg_type = msg.get_type()
+        force_disarm_needed = False
+        changed = True
         with self._lock:
             t = self._telemetry
             if msg_type == "HEARTBEAT":
@@ -198,6 +215,16 @@ class MavlinkBridge:
                 t.lon = msg.lon / 1e7
             elif msg_type == "VFR_HUD":
                 t.alt = msg.alt
+            elif (
+                msg_type == "COMMAND_ACK"
+                and msg.command == mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM
+                and self._disarm_ack_deadline is not None
+            ):
+                force_disarm_needed = msg.result != mavutil.mavlink.MAV_RESULT_ACCEPTED
+                self._disarm_ack_deadline = None
+                changed = False
             else:
-                return False
-        return True
+                changed = False
+        if force_disarm_needed:
+            self._force_disarm()
+        return changed

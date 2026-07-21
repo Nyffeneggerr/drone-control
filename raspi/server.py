@@ -25,7 +25,7 @@ from pathlib import Path
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
-from mavlink_bridge import GPS_FIX_TYPE_3D, MavlinkBridge, Telemetry
+from mavlink_bridge import MavlinkBridge, Telemetry
 
 FC_PORT = os.environ.get("FC_PORT", "/dev/serial0")
 FC_BAUD = int(os.environ.get("FC_BAUD", "57600"))
@@ -101,8 +101,6 @@ def _handle_client_message(raw: str) -> None:
             r=int(msg.get("r", 0)),
         )
     elif msg_type == "arm":
-        if _bridge.get_telemetry().gps_fix_type < GPS_FIX_TYPE_3D:
-            return  # app-layer refusal per PRD; bridge also refuses independently
         _bridge.request_arm()
     elif msg_type == "disarm":
         _bridge.request_disarm()

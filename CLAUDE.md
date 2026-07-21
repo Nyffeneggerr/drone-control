@@ -9,9 +9,16 @@ See `PRD.md` for full design/decisions and `README.md` for day-to-day running in
 A WiFi control system for a drone with **no backup RC transmitter** — this is the single most
 important fact about the project and shapes almost every design/safety decision. The Raspberry Pi
 link is the sole control path; the ArduPilot flight controller's native `FS_GCS_ENABLE` failsafe
-(RTL/Land on heartbeat loss) is the only safety net if the Pi or WiFi drops. Any change touching
-arming, the heartbeat loop, or control-message handling has real physical safety implications —
-treat it accordingly, and don't weaken the GPS-fix arm gate or heartbeat cadence without reason.
+is the only safety net if the Pi or WiFi drops. Any change touching arming, the heartbeat loop, or
+control-message handling has real physical safety implications — treat it accordingly, and don't
+weaken the heartbeat cadence without reason.
+
+**This airframe has no GPS module** (confirmed 2026-07-21 — never wired, nothing to add). There is
+no position estimate, so: flight modes are Stabilize/AltHold only (never Loiter/RTL/Auto/PosHold,
+all of which need position); `FS_GCS_ENABLE` must be configured for **Land**, not RTL, since RTL
+needs a GPS-derived home position; geofence is altitude-only (`FENCE_TYPE` circle/polygon bits need
+position too). Don't reintroduce a GPS-fix arm gate or a GPS-dependent failsafe/fence config without
+first confirming a GPS module actually exists on the airframe.
 
 ## Architecture
 
@@ -39,10 +46,10 @@ treat it accordingly, and don't weaken the GPS-fix arm gate or heartbeat cadence
 - `raspi/ap-setup/` — one-time hostapd/dnsmasq scripts turning the Pi's `wlan0` into a standalone
   AP (`192.168.4.1`) so the controller device needs no field/home network.
 
-The GPS-fix arm gate (`fix_type >= 3` required to arm) is enforced independently at two layers by
-design: `server.py::_handle_client_message` (app-layer, so the client gets fast feedback) and
-`MavlinkBridge._handle_arm_request` (bridge-layer, so arming is refused even if a caller bypasses
-the server). Keep both in sync if this logic changes.
+There is no GPS-fix arm gate: `server.py::_handle_client_message` and
+`MavlinkBridge._handle_arm_request` both send arm/disarm unconditionally (removed 2026-07-21 once
+it was confirmed this airframe has no GPS at all). `bench_test.py` still has its own standalone
+`--force-arm`-gated check, kept as-is since it's independent of the backend service.
 
 ## Commands
 
