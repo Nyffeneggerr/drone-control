@@ -152,12 +152,26 @@ PWA at `http://192.168.2.152:8000/`, since no phone/tablet was in hand this sess
   restart took 6.54s to HTTP, longer to MAVLink-reconnect, both past `FS_GCS_TIMEOUT=5s` — FC had
   already failed safe (`armed:false`) by the time the service recovered. Not a masking risk on this
   hardware as currently configured; do not shorten `RestartSec` without re-testing.
-- [ ] Geofence app-level handling (fence-breach telemetry field + HUD banner) — not yet implemented.
-- [ ] WS reconnect/retry hardening (exponential backoff, overlapping-timer guard, retry-state
-  indicator) — not yet implemented; fixes the reconnect-race bug found in the Phase 2/3 section
-  above.
-- [ ] Battery failsafe surfaced in-app (`BATT_MONITOR`/`BATT_LOW_VOLT`/`BATT_CRT_VOLT` +
-  matching HUD banner) — not yet implemented. Airframe confirmed 6S LiPo (22.2V nominal) 2026-07-23.
+- [x] Geofence app-level handling (fence-breach telemetry field + HUD banner). 2026-07-23:
+  `mavlink_bridge.py` parses `FENCE_STATUS.breach_status` into a `fence_breached` telemetry field,
+  surfaced in the WS schema (`server.py`) and rendered as `#fence-banner` in `web/index.html`/
+  `app.js`. Implemented same session as the rest of Phase 4 but missed in this checklist at the
+  time — confirmed present via code inspection 2026-07-23, not yet exercised live (no way to trigger
+  a real fence breach on the bench); do a live confirm outdoors once `FENCE_RADIUS`/`FENCE_ALT_MAX`
+  are set for the actual site.
+- [x] WS reconnect/retry hardening (exponential backoff, overlapping-timer guard, retry-state
+  indicator). 2026-07-23: `web/app.js` now backs off 1s→2s→4s→8s (capped 10s) via
+  `RECONNECT_BASE_MS`/`RECONNECT_MAX_MS`, guards against overlapping timers with `reconnectTimer`,
+  and shows a `retrying in Ns (attempt N)` status-bar message — fixes the reconnect-race bug found
+  in the Phase 2/3 section above. Confirmed present via code inspection 2026-07-23; not yet
+  re-run through the actual kill/restart-cycle repro from Phase 2/3.
+- [x] Battery failsafe surfaced in-app (`BATT_MONITOR`/`BATT_LOW_VOLT`/`BATT_CRT_VOLT` +
+  matching HUD banner). Airframe confirmed 6S LiPo (22.2V nominal) 2026-07-23. `drone.param` sets
+  `BATT_LOW_VOLT=21.0`/`BATT_CRT_VOLT=19.8` (3.5V/cell, 3.3V/cell) with `BATT_FS_LOW_ACT`/
+  `BATT_FS_CRT_ACT=1` (Land, not RTL — no GPS). `mavlink_bridge.py` mirrors the same two thresholds
+  to compute `battery_status` (normal/low/critical) from `SYS_STATUS`; `app.js` colors the battery
+  readout and shows `#battery-banner` accordingly. Confirmed present via code inspection 2026-07-23;
+  live low/critical thresholds not yet exercised against a real battery in that voltage range.
 
 ## Before first real flight
 
