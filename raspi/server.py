@@ -12,7 +12,8 @@ Server -> client:
   {"type": "telemetry", "armed": bool, "mode": str, "link_ok": bool,
    "battery_voltage": float|null, "battery_remaining": int|null,
    "gps_fix_type": int, "satellites_visible": int,
-   "lat": float|null, "lon": float|null, "alt": float|null}
+   "lat": float|null, "lon": float|null, "alt": float|null,
+   "fence_breached": bool, "battery_status": "unknown"|"normal"|"low"|"critical"}
 """
 from __future__ import annotations
 

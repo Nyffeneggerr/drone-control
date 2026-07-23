@@ -54,7 +54,16 @@ FC_PORT=/dev/serial0 FC_BAUD=57600 uvicorn server:app --host 0.0.0.0 --port 8000
 
 To deploy code changes from a dev machine instead of editing on the Pi directly: `raspi/sync-to-pi.sh` rsyncs both `raspi/` and `web/` to the Pi as siblings (`~/raspi`, `~/web` by default) — `server.py` expects that layout since it serves `web/` relative to its own location.
 
-To run this automatically on boot, add a systemd unit (`ExecStart=uvicorn server:app --host 0.0.0.0 --port 8000`, `WorkingDirectory=.../drone-control/raspi`) and `systemctl enable` it — not included yet, add when you're ready to stop running it by hand.
+**Run automatically on boot** via the included systemd unit:
+```bash
+sudo cp raspi/drone-control.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now drone-control.service
+```
+`Restart=on-failure`/`RestartSec=2` auto-restarts the service on crash. Bench-tested 2026-07-23
+(`docs/failsafe-drill.md`, "systemd auto-restart interaction"): real restart+MAVLink-reconnect time
+exceeds `FS_GCS_TIMEOUT=5s`, so a crash still trips the FC-side failsafe before the service can
+mask it by resuming heartbeats — don't shorten `RestartSec` without re-testing that.
 
 ## 3. Run the controller (PWA)
 

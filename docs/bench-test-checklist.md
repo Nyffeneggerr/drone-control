@@ -142,6 +142,23 @@ PWA at `http://192.168.2.152:8000/`, since no phone/tablet was in hand this sess
   session (e.g. repeated WiFi flakiness without a reload) — the *first* disconnect in a session
   always renders correctly.
 
+## Phase 4 — safety & reliability hardening
+
+- [x] `raspi/drone-control.service` (systemd unit) installed and enabled on the Pi
+  (`/etc/systemd/system/drone-control.service`, `systemctl enable`d). Replaces the manual
+  `uvicorn ...` run from the README.
+- [x] Auto-restart-vs-`FS_GCS_TIMEOUT` masking risk bench-tested — see `docs/failsafe-drill.md`
+  ("systemd auto-restart interaction"). 2026-07-23: `SIGKILL`ed the service mid-arm (props off);
+  restart took 6.54s to HTTP, longer to MAVLink-reconnect, both past `FS_GCS_TIMEOUT=5s` — FC had
+  already failed safe (`armed:false`) by the time the service recovered. Not a masking risk on this
+  hardware as currently configured; do not shorten `RestartSec` without re-testing.
+- [ ] Geofence app-level handling (fence-breach telemetry field + HUD banner) — not yet implemented.
+- [ ] WS reconnect/retry hardening (exponential backoff, overlapping-timer guard, retry-state
+  indicator) — not yet implemented; fixes the reconnect-race bug found in the Phase 2/3 section
+  above.
+- [ ] Battery failsafe surfaced in-app (`BATT_MONITOR`/`BATT_LOW_VOLT`/`BATT_CRT_VOLT` +
+  matching HUD banner) — not yet implemented. Airframe confirmed 6S LiPo (22.2V nominal) 2026-07-23.
+
 ## Before first real flight
 
 - [ ] All boxes above checked, on the actual airframe, at the actual flight site.

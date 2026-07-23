@@ -23,6 +23,11 @@ FC_HEARTBEAT_TIMEOUT_S = 3.0  # no HEARTBEAT from FC within this window -> repor
 FORCE_DISARM_MAGIC = 21196  # ArduPilot's magic param2 value to force disarm past the landed-check
 DISARM_ACK_TIMEOUT_S = 3.0  # if a plain disarm isn't acked (or is rejected) within this window, force it
 
+# Mirrors BATT_LOW_VOLT/BATT_CRT_VOLT in firmware-config/drone.param (6S LiPo, confirmed
+# 2026-07-23) -- keep these in sync with the live FC params if either changes.
+BATT_LOW_VOLT = 21.0
+BATT_CRT_VOLT = 19.8
+
 
 @dataclass
 class ControlState:
@@ -45,6 +50,8 @@ class Telemetry:
     lat: Optional[float] = None
     lon: Optional[float] = None
     alt: Optional[float] = None
+    fence_breached: bool = False
+    battery_status: str = "unknown"  # "unknown" | "normal" | "low" | "critical"
 
 
 class MavlinkBridge:
@@ -217,6 +224,12 @@ class MavlinkBridge:
             elif msg_type == "SYS_STATUS":
                 t.battery_voltage = msg.voltage_battery / 1000.0
                 t.battery_remaining = msg.battery_remaining
+                if t.battery_voltage <= BATT_CRT_VOLT:
+                    t.battery_status = "critical"
+                elif t.battery_voltage <= BATT_LOW_VOLT:
+                    t.battery_status = "low"
+                else:
+                    t.battery_status = "normal"
             elif msg_type == "GPS_RAW_INT":
                 t.gps_fix_type = msg.fix_type
                 t.satellites_visible = msg.satellites_visible
@@ -224,6 +237,11 @@ class MavlinkBridge:
                 t.lon = msg.lon / 1e7
             elif msg_type == "VFR_HUD":
                 t.alt = msg.alt
+            elif msg_type == "FENCE_STATUS":
+                # ArduPilot-specific message with a direct breach_status bool -- preferred over
+                # decoding the generic SYS_STATUS geofence health bit or scraping STATUSTEXT,
+                # neither of which distinguish "breached" from "fence disabled"/other unhealthy.
+                t.fence_breached = bool(msg.breach_status)
             elif (
                 msg_type == "COMMAND_ACK"
                 and msg.command == mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM

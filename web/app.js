@@ -2,7 +2,8 @@
 // and renders telemetry pushed back over the same socket.
 
 const CONTROL_SEND_HZ = 20;
-const RECONNECT_DELAY_MS = 1000;
+const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_MS = 10000;
 
 const leftStick = new VirtualJoystick(document.getElementById('stick-left'), {
   selfCenterX: true,   // yaw snaps back to center
@@ -16,6 +17,8 @@ const rightStick = new VirtualJoystick(document.getElementById('stick-right'), {
 
 let ws = null;
 let gamepadIndex = null;
+let reconnectAttempts = 0;
+let reconnectTimer = null;
 
 function setStatus(state, linkText = '') {
   const bar = document.getElementById('status-bar');
@@ -25,18 +28,40 @@ function setStatus(state, linkText = '') {
   document.getElementById('link-text').textContent = linkText;
 }
 
+function scheduleReconnect() {
+  if (reconnectTimer !== null) return; // a reconnect is already pending, don't stack timers
+  const delaySec = Math.min(RECONNECT_BASE_MS * 2 ** reconnectAttempts, RECONNECT_MAX_MS) / 1000;
+  reconnectAttempts += 1;
+  setStatus('disconnected', `retrying in ${delaySec}s (attempt ${reconnectAttempts})`);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connect();
+  }, delaySec * 1000);
+}
+
 function connect() {
   setStatus('connecting');
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}/ws`);
+  const socket = new WebSocket(`${proto}://${location.host}/ws`);
+  ws = socket;
 
-  ws.onopen = () => setStatus('connected');
-  ws.onclose = () => {
-    setStatus('disconnected');
-    setTimeout(connect, RECONNECT_DELAY_MS);
+  // Guard every handler against a stale socket: once a newer connect() has
+  // replaced `ws`, this socket's late-firing events must not touch UI state
+  // (a slow onclose from a superseded socket previously stomped a newer,
+  // already-successful onopen's CONNECTED status).
+  socket.onopen = () => {
+    if (ws !== socket) return;
+    reconnectAttempts = 0;
+    setStatus('connected');
   };
-  ws.onerror = () => ws.close();
-  ws.onmessage = (event) => {
+  socket.onclose = () => {
+    if (ws !== socket) return;
+    setStatus('disconnected');
+    scheduleReconnect();
+  };
+  socket.onerror = () => socket.close();
+  socket.onmessage = (event) => {
+    if (ws !== socket) return;
     const msg = JSON.parse(event.data);
     if (msg.type === 'telemetry') updateHud(msg);
   };
@@ -52,10 +77,15 @@ function updateHud(t) {
   const battery = document.getElementById('hud-battery');
   if (t.battery_voltage != null) {
     battery.textContent = `${t.battery_voltage.toFixed(1)}V${t.battery_remaining != null ? ` (${t.battery_remaining}%)` : ''}`;
-    battery.className = `hud-value ${t.battery_remaining != null && t.battery_remaining < 20 ? 'bad' : ''}`;
+    battery.className = `hud-value ${t.battery_status === 'critical' ? 'bad' : t.battery_status === 'low' ? 'warn' : ''}`;
   } else {
     battery.textContent = '--';
   }
+
+  const batteryBanner = document.getElementById('battery-banner');
+  batteryBanner.textContent = t.battery_status === 'critical' ? '⚠ BATTERY CRITICAL' : '⚠ BATTERY LOW';
+  batteryBanner.classList.toggle('banner-warn', t.battery_status === 'low');
+  batteryBanner.classList.toggle('hidden', t.battery_status !== 'low' && t.battery_status !== 'critical');
 
   const gps = document.getElementById('hud-gps');
   gps.textContent = `fix=${t.gps_fix_type} sats=${t.satellites_visible}`;
@@ -65,6 +95,8 @@ function updateHud(t) {
 
   document.getElementById('link-text').textContent = t.link_ok ? 'FC link OK' : 'FC LINK LOST';
   if (!t.link_ok) setStatus('disconnected', 'FC LINK LOST');
+
+  document.getElementById('fence-banner').classList.toggle('hidden', !t.fence_breached);
 }
 
 function send(obj) {

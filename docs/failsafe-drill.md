@@ -31,3 +31,26 @@ Do not proceed to the next phase or to real flight. Recheck `FS_GCS_ENABLE`/`FS_
 ## Outdoor pre-flight repeat
 
 Before the first real flight: repeat this entire drill outdoors, on the actual airframe, low altitude (a meter or two, or props-off ground test if altitude isn't needed to trust the result), with a spotter ready to catch or manually intervene if the drone does anything unexpected.
+
+## systemd auto-restart interaction
+
+`raspi/drone-control.service` (Phase 4) auto-restarts `server.py` on crash (`Restart=on-failure`,
+`RestartSec=2`). The open concern going in: a fast enough restart could resume heartbeats before
+`FS_GCS_TIMEOUT` elapses, masking a crash that should have tripped the FC failsafe.
+
+**2026-07-23 — bench-tested (props off, stationary, armed via WS through the service), result: not
+a problem.** `SIGKILL`ed the systemd-managed `uvicorn` process directly (`os.kill`, same-UID, no
+`systemctl stop` — that would count as an intentional stop and skip the restart policy) while
+armed. Timeline: HTTP back up at **6.54s** post-kill; MAVLink link back up (`link_ok:true`,
+first real telemetry) noticeably later still. Both exceed `FS_GCS_TIMEOUT=5s`, so by the time the
+service can resume sending heartbeats, the FC has already failed safe — confirmed `armed:false`
+once the link came back (mode stayed `STABILIZE`, not `LAND`, consistent with every prior drill on
+this stationary/zero-throttle bench setup: ArduCopter's landed-detector short-circuits straight to
+disarm rather than engaging `LAND` when already on the ground — real `LAND` engagement is still
+only provable airborne, see the outdoor repeat above).
+
+Conclusion: `RestartSec=2` plus actual Python/uvicorn/pymavlink startup overhead (~4.5s beyond the
+`RestartSec` delay) puts total recovery time above `FS_GCS_TIMEOUT`, so the auto-restart does not
+mask the failsafe on this hardware. Do not shorten `RestartSec` or otherwise speed up the service's
+startup path without re-running this test — the safety margin here is startup latency, not a
+deliberate design guarantee, and a faster restart could reopen the masking risk.

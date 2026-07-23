@@ -78,3 +78,20 @@ FENCE_RADIUS,300
 # FENCE_ACTION: 1 = RTL-or-Land on breach; falls back to Land since this
 # airframe has no GPS/home position (matches FS_GCS_ENABLE=5 behavior)
 FENCE_ACTION,1
+
+# --- Battery failsafe: extra safety net alongside FS_GCS_ENABLE ---
+# Airframe confirmed 6S LiPo (22.2V nominal), 2026-07-23. BATT_MONITOR already
+# configured on the FC (4 = Analog Voltage and Current, via SYS_STATUS) --
+# not listed here since it was already correct; these thresholds were not.
+# BATT_LOW_VOLT: 21.0V = 3.5V/cell, standard LiPo low-battery threshold.
+# Live FC previously had 10.5V -- a leftover from some other pack profile,
+# nonsensical for 6S (would never trigger before the pack was already dead).
+BATT_LOW_VOLT,21.0
+# BATT_CRT_VOLT: 19.8V = 3.3V/cell, standard LiPo critical threshold.
+# Live FC previously had 0 (disabled).
+BATT_CRT_VOLT,19.8
+# BATT_FS_LOW_ACT / BATT_FS_CRT_ACT: 1 = Land, not RTL/SmartRTL (2/3/4) --
+# no GPS/home position, same reasoning as FS_GCS_ENABLE and FENCE_ACTION.
+# Live FC previously had both at 0 (no action at all on either threshold).
+BATT_FS_LOW_ACT,1
+BATT_FS_CRT_ACT,1
