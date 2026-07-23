@@ -61,6 +61,56 @@ MAVLink (`PARAM_REQUEST_READ`) rather than guess, and corrected the file:
 - `FENCE_TYPE`: file said `7` (alt+circle+polygon), live FC has `1` (altitude-only, matching
   CLAUDE.md's no-GPS constraint).
 
+**✅ 2026-07-23 — uneven motor spin-up / backward flip on slow throttle-up; root cause was uncalibrated ESCs, fixed via ESC_CALIBRATION.**
+Symptom: ramping throttle up slowly (originally via the joystick, later via the new fine-thrust
+slider in `web/app.js`/`index.html` added the same session — 0-15% range, beside the throttle
+stick) produced uneven motor spin and the drone flipping backward; later described more precisely
+as "nothing happens for the first ~15%, then all motors lurch hard."
+1. Read the live FC params directly over MAVLink (`PARAM_REQUEST_READ`, service stopped briefly to
+   get exclusive UART3 access): `FRAME_CLASS`/`FRAME_TYPE` correct (1/1, quad X); `MOT_PWM_MIN/MAX`
+   (1000/2000), `MOT_SPIN_ARM` (0.10), `MOT_SPIN_MIN` (0.15), `MOT_SPIN_MAX` (0.95),
+   `MOT_THST_EXPO`/`MOT_THST_HOVER` all still at stock ArduCopter factory defaults — nothing
+   actually misconfigured there. But `ESC_CALIBRATION = 0`: the ESCs had never been calibrated to
+   this FC's PWM range at all, confirmed by the user ("I could not do any ESC calibration so far").
+   Each ESC's own idea of min/max PWM was still whatever it shipped with — explains both the uneven
+   per-motor response and the flip (asymmetric thrust as different ESCs cross their own thresholds
+   at different points).
+2. This airframe has **no RC receiver at all** (MAVLink-only control from the Pi), so the normal
+   throttle-stick-based ESC calibration method doesn't apply. Used `ESC_CALIBRATION = 3`
+   ("automatic, no throttle stick needed" per ArduPilot docs) instead: set via `param_set_send`
+   (harmless by itself — doesn't move any output), then the user power-cycled the battery (not a
+   reboot command — the calibration entry check only runs at power-on).
+3. **First power-cycle attempt was ambiguous** — user heard "ascending and descending" tones but no
+   motor movement, and the FC then went completely silent on the link afterward (a raw pyserial
+   read got zero bytes over a 4s window, not just no MAVLink heartbeat). This matches ArduPilot's
+   documented behavior: after the calibration routine finishes (PWM to max ~5s, then to min), it
+   **blocks indefinitely awaiting another reboot** — so the silence was expected, not a fault.
+   Confirmed the caveat flagged going in still stands unverified either way: `esc_calibration_startup_check()`
+   also runs an internal RC-radio calibration check first, and it's undocumented whether that
+   silently skips calibration on a board with zero RC receiver hardware — the first tone sequence
+   heard could have been either the real calibration tune or just the normal boot tune plus an
+   unrelated tone; inconclusive from audio alone.
+4. **Second power-cycle** (per ArduPilot docs, required after calibration completes) brought the
+   link back immediately; `ESC_CALIBRATION` read back as `0` (auto-reset by the FC on successful
+   completion, confirming calibration DID run and finish). Startup tone this time was the user's
+   familiar normal boot tune, consistent with `ESC_CALIBRATION` already being back at 0.
+5. **Confirmed fixed**, user's words: "Now it works perfectly, when arming, motors begin to rotate
+   decent and with the control, I can safely/smoothly increase the thrust as expected." Bench
+   check only so far (props on presumably still pending a real hover test) — do not skip the
+   low-altitude hover confirmation before treating this as flight-ready.
+6. **Motor order/rotation direction independently confirmed, props still off**, via
+   `MAV_CMD_DO_MOTOR_TEST` (4x sequential, 10% throttle, 2s each, service stopped briefly for
+   exclusive UART3 access) — all four motors ACK'd `ACCEPTED` and spun in sequence 1→2→3→4.
+   User confirmed all four spin in the direction matching their mounted props. This closes out the
+   other candidate root cause raised alongside ESC calibration at the start of this investigation
+   (motor order/`FRAME_TYPE` mapping was fine all along; ESC calibration was the actual fix).
+   Props remounted after this check.
+
+- [x] ESC calibration performed (`ESC_CALIBRATION=3`, no-RC-receiver method) and confirmed working
+  via smooth/even motor response on slow throttle ramp-up. (2026-07-23, see root-cause note above.)
+- [x] Motor order/rotation direction confirmed correct for `FRAME_TYPE` (X) via props-off
+  `MAV_CMD_DO_MOTOR_TEST`, all 4 motors. (2026-07-23, see root-cause note above.)
+
 ## Phase 1 — backend service (`raspi/server.py`)
 
 - [x] `pip install -r raspi/requirements.txt` on the Raspi. (2026-07-23: Raspi OS is now Bookworm,
