@@ -7,6 +7,7 @@ const RECONNECT_MAX_MS = 10000;
 const TRIM_STEP = 10;
 const TRIM_LIMIT = 150; // cap at 15% of full stick range so trim can't peg an axis on its own
 const TRIM_STORAGE_KEY = 'drone-control-trim';
+const FINE_THRUST_MAX = 150; // 15% of full z range (0-1000); keep in sync with #thrust-fine's max attribute
 
 const leftStick = new VirtualJoystick(document.getElementById('stick-left'), {
   selfCenterX: true,   // yaw snaps back to center
@@ -22,6 +23,31 @@ let ws = null;
 let gamepadIndex = null;
 let reconnectAttempts = 0;
 let reconnectTimer = null;
+
+// Fine-thrust slider: an independent 0-15% throttle input, added after a
+// slow-throttle bench test caused an uneven motor spin-up and a backward
+// flip. Whichever of {stick, slider} the user touched most recently drives
+// z -- moving one does not affect the other's held value.
+const thrustFineSlider = document.getElementById('thrust-fine');
+const thrustFineValue = document.getElementById('thrust-fine-value');
+thrustFineSlider.max = String(FINE_THRUST_MAX);
+let throttleSource = 'stick';
+
+function updateThrustFineReadout() {
+  const pct = (Number(thrustFineSlider.value) / 10).toFixed(1);
+  thrustFineValue.textContent = `fine thrust ${pct}%`;
+}
+
+thrustFineSlider.addEventListener('input', () => {
+  throttleSource = 'slider';
+  updateThrustFineReadout();
+});
+
+document.getElementById('stick-left').addEventListener('pointerdown', () => {
+  throttleSource = 'stick';
+});
+
+updateThrustFineReadout();
 
 function loadTrim() {
   try {
@@ -189,10 +215,11 @@ function readControls() {
       };
     }
   }
+  const stickZ = Math.round(((1 - leftStick.y) / 2) * 1000);
   return {
     x: Math.round(rightStick.x * 1000),
     y: Math.round(-rightStick.y * 1000),
-    z: Math.round(((1 - leftStick.y) / 2) * 1000),
+    z: throttleSource === 'slider' ? Number(thrustFineSlider.value) : stickZ,
     r: Math.round(leftStick.x * 1000),
   };
 }
@@ -207,7 +234,7 @@ function applyTrim(c) {
 }
 
 function updateReadout(c) {
-  document.getElementById('readout-left').textContent = `throttle ${c.z} · yaw ${c.r}`;
+  document.getElementById('readout-left').textContent = `throttle ${c.z} (${throttleSource}) · yaw ${c.r}`;
   document.getElementById('readout-right').textContent = `roll ${c.x} · pitch ${c.y}`;
 }
 

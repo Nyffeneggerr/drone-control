@@ -61,8 +61,12 @@
 
   <div id="sticks">
     <div class="stick-block">
-      <canvas id="stick-left" class="stick" width="200" height="200"></canvas>
+      <div class="throttle-cluster">
+        <input type="range" id="thrust-fine" class="thrust-fine-slider" min="0" max="150" value="0" step="1" orient="vertical" aria-label="Fine thrust, 0 to 15 percent">
+        <canvas id="stick-left" class="stick" width="200" height="200"></canvas>
+      </div>
       <div id="readout-left" class="stick-readout">throttle 0 · yaw 0</div>
+      <div id="thrust-fine-value" class="stick-readout">fine thrust 0.0%</div>
     </div>
     <div class="stick-block">
       <canvas id="stick-right" class="stick" width="200" height="200"></canvas>

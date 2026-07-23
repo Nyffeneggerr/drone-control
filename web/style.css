@@ -105,6 +105,22 @@ html, body {
   touch-action: none;
 }
 
+.throttle-cluster {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.thrust-fine-slider {
+  writing-mode: vertical-lr;
+  direction: rtl; /* min at bottom, max at top -- matches "up = more throttle" */
+  appearance: slider-vertical;
+  width: 28px;
+  height: 200px;
+  accent-color: #5ce087;
+  touch-action: none;
+}
+
 .stick-readout {
   font-size: 13px;
   font-variant-numeric: tabular-nums;
