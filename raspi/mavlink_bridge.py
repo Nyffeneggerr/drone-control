@@ -17,6 +17,7 @@ from pymavlink import mavutil
 
 HEARTBEAT_HZ = 1.0
 MANUAL_CONTROL_HZ = 30.0
+TELEMETRY_STREAM_HZ = 4  # requested rate for GPS_RAW_INT/SYS_STATUS/VFR_HUD; FC doesn't send these unsolicited
 STALE_CONTROL_TIMEOUT_S = 0.5  # if browser stops sending, fall back to neutral/no-input rather than replay old sticks
 FC_HEARTBEAT_TIMEOUT_S = 3.0  # no HEARTBEAT from FC within this window -> report link down to the UI
 FORCE_DISARM_MAGIC = 21196  # ArduPilot's magic param2 value to force disarm past the landed-check
@@ -97,6 +98,14 @@ class MavlinkBridge:
     def _run(self) -> None:
         self._conn = mavutil.mavlink_connection(self._port, baud=self._baud)
         self._conn.wait_heartbeat()
+        # FC only sends HEARTBEAT unsolicited; GPS_RAW_INT/SYS_STATUS/VFR_HUD need an explicit request
+        self._conn.mav.request_data_stream_send(
+            self._conn.target_system,
+            self._conn.target_component,
+            mavutil.mavlink.MAV_DATA_STREAM_ALL,
+            TELEMETRY_STREAM_HZ,
+            1,
+        )
 
         last_hb = 0.0
         last_manual = 0.0

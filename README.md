@@ -20,7 +20,7 @@ mavproxy.py --master=/dev/ttyACM0
 param load firmware-config/drone.param
 ```
 
-After loading, reboot the FC and confirm with `param show SERIAL2_PROTOCOL` (or the GCS's parameter list) that values stuck.
+After loading, reboot the FC and confirm with `param show SERIAL3_PROTOCOL` (or the GCS's parameter list) that values stuck.
 
 ## 2. Run the Raspi side
 
@@ -28,7 +28,8 @@ On the Raspi (after wiring per `docs/wiring.md`):
 
 ```bash
 cd raspi
-pip install -r requirements.txt
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt  # Raspi OS Bookworm blocks system-wide pip installs
+source .venv/bin/activate
 ```
 
 **One-time AP setup** (turns wlan0 into the `drone-control` WiFi AP):
@@ -43,13 +44,15 @@ python3 bench_test.py --port /dev/serial0 --baud 57600
 ```
 Add `--test-manual-control` to also exercise MANUAL_CONTROL, `--force-arm` to skip the GPS-fix gate for command-path-only testing indoors. Full checklist: `docs/bench-test-checklist.md`. Do not skip the failsafe drill (`docs/failsafe-drill.md`) at this stage.
 
-**Status (2026-07-20):** link connects and the GPS-fix arm gate has been confirmed on-bench (see checklist). Not yet done: confirming `GPS_RAW_INT`/`SYS_STATUS`/`VFR_HUD` are actually streaming (only `HEARTBEAT` was observed so far — worth checking before trusting the fix-type reading), `--test-manual-control`, disarm, and the failsafe drill. See `docs/bench-test-checklist.md` for the live checklist.
+**Status (2026-07-23):** this airframe has no GPS module at all (confirmed 2026-07-21) — the GPS-fix arm gate has since been removed, not confirmed. Link, arm/disarm, `--test-manual-control`, and telemetry streaming (`GPS_RAW_INT`/`SYS_STATUS`/`VFR_HUD`, which need an explicit `REQUEST_DATA_STREAM` — added 2026-07-23) are all confirmed working, on UART3 (not UART2 — see `docs/wiring.md`). Outstanding: the outdoor failsafe drill (Land-engagement + FC LED/buzzer behavior, deferred from the bench attempt — see checklist), and now the Phase 2/3 full-stack bench pass. See `docs/bench-test-checklist.md` for the live checklist.
 
 **Backend service** (WS bridge + serves the PWA):
 ```bash
 FC_PORT=/dev/serial0 FC_BAUD=57600 uvicorn server:app --host 0.0.0.0 --port 8000
 ```
-`FC_PORT`/`FC_BAUD` default to `/dev/serial0`/`57600` if unset — must match `SERIAL2_BAUD` on the FC.
+`FC_PORT`/`FC_BAUD` default to `/dev/serial0`/`57600` if unset — must match `SERIAL3_BAUD` on the FC.
+
+To deploy code changes from a dev machine instead of editing on the Pi directly: `raspi/sync-to-pi.sh` rsyncs both `raspi/` and `web/` to the Pi as siblings (`~/raspi`, `~/web` by default) — `server.py` expects that layout since it serves `web/` relative to its own location.
 
 To run this automatically on boot, add a systemd unit (`ExecStart=uvicorn server:app --host 0.0.0.0 --port 8000`, `WorkingDirectory=.../drone-control/raspi`) and `systemctl enable` it — not included yet, add when you're ready to stop running it by hand.
 

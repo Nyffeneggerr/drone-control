@@ -1,7 +1,7 @@
 // Caches the app shell so the PWA is installable and opens even if the Raspi
 // AP is slow to hand out an IP. The WS control link still needs a live
 // connection to be useful — this is shell caching, not offline control.
-const CACHE_NAME = 'drone-control-shell-v1';
+const CACHE_NAME = 'drone-control-shell-v2';
 const SHELL_FILES = [
   '/',
   '/index.html',

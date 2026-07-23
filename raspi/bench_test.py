@@ -19,6 +19,7 @@ from pymavlink import mavutil
 HEARTBEAT_HZ = 1
 MANUAL_CONTROL_HZ = 30
 GPS_FIX_TYPE_3D = 3
+TELEMETRY_STREAM_HZ = 4  # requested rate for GPS_RAW_INT/SYS_STATUS/VFR_HUD; FC doesn't send these unsolicited
 
 
 def connect(port: str, baud: int) -> mavutil.mavfile:
@@ -28,6 +29,11 @@ def connect(port: str, baud: int) -> mavutil.mavfile:
     print(
         f"Heartbeat received from system {conn.target_system}, "
         f"component {conn.target_component}"
+    )
+    # FC only sends HEARTBEAT unsolicited; GPS_RAW_INT/SYS_STATUS/VFR_HUD need an explicit request
+    conn.mav.request_data_stream_send(
+        conn.target_system, conn.target_component,
+        mavutil.mavlink.MAV_DATA_STREAM_ALL, TELEMETRY_STREAM_HZ, 1,
     )
     return conn
 

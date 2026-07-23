@@ -55,14 +55,15 @@ it was confirmed this airframe has no GPS at all). `bench_test.py` still has its
 
 ```bash
 cd raspi
-pip install -r requirements.txt
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt  # Raspi OS Bookworm blocks system-wide pip installs
+source .venv/bin/activate
 
 # Phase 0 — raw MAVLink link sanity check (run first, props off)
 python3 bench_test.py --port /dev/serial0 --baud 57600
 python3 bench_test.py --test-manual-control   # also exercise MANUAL_CONTROL
 python3 bench_test.py --force-arm             # skip GPS-fix gate, command-path testing only, indoors
 
-# Backend service (WS bridge + serves the PWA)
+# Backend service (WS bridge + serves the PWA; also needs ../web/ present — see sync-to-pi.sh)
 FC_PORT=/dev/serial0 FC_BAUD=57600 uvicorn server:app --host 0.0.0.0 --port 8000
 
 # One-time WiFi AP setup on the Pi

@@ -47,16 +47,40 @@ again, check the resolution first):
   - Separately, **no FC LED or buzzer change was observed** at the failsafe moment, despite telemetry (via the same Pi/UART link) clearly showing the disarm at t=5.8s. This matters: if the real-world failure is "Pi crashes/loses power entirely" rather than "script gets killed," that same telemetry channel is gone too — the FC's own physical indicators would be the only signal available in the field, and today we don't know if this board gives one reliably. Watch closely for any LED/buzzer change during the outdoor repeat.
   - Deferred to the outdoor low-altitude hover repeat (see "Outdoor pre-flight repeat" below) per user decision 2026-07-21 — do not mark this box done until Land-engagement and the LED/buzzer question are both actually confirmed there, with a spotter present.
 
+**2026-07-23 — `firmware-config/drone.param` synced with the live FC (was drifted).** The FC-side
+changes applied via QGroundControl on 2026-07-21 (see arm-succeeds entry above) had never been
+written back to the checked-in param file — reloading it onto a reset FC would have silently
+reintroduced RTL-without-GPS and full arming checks. Read the actual live values directly over
+MAVLink (`PARAM_REQUEST_READ`) rather than guess, and corrected the file:
+- `FS_GCS_ENABLE`: file said `1` (RTL), live FC has `5` (Land). (Checklist prose above says the
+  applied value was "3" — that was a recording mistake; 5 is what's actually on the FC and is the
+  correct value: Land, not RTL, since there's no GPS. Note the discrepancy in case "3" is ever
+  quoted elsewhere.)
+- `ARMING_CHECK`: file said `1` (all checks), live FC has `9650` (excludes RC/GPS-lock/Compass,
+  per the arm-succeeds entry above). Documented the exact bitmask in `drone.param` now.
+- `FENCE_TYPE`: file said `7` (alt+circle+polygon), live FC has `1` (altitude-only, matching
+  CLAUDE.md's no-GPS constraint).
+
 ## Phase 1 — backend service (`raspi/server.py`)
 
-- [ ] `pip install -r raspi/requirements.txt` on the Raspi.
-- [ ] AP up: `raspi/ap-setup/install.sh` run once, `hostapd.conf` passphrase changed from default, AP visible from a phone/laptop, DHCP lease obtained.
-- [ ] `FC_PORT=/dev/serial0 FC_BAUD=57600 uvicorn server:app --host 0.0.0.0 --port 8000` (from `raspi/`) starts without error, connects to FC.
-- [ ] From a WS client (browser devtools or `websocat ws://192.168.4.1:8000/ws`), send `{"type":"arm"}` / `{"type":"disarm"}` / `{"type":"control",...}` and confirm FC responds (motors beep / arm state changes) with props off.
-- [ ] Telemetry JSON streams back over the same socket at a reasonable rate.
+- [x] `pip install -r raspi/requirements.txt` on the Raspi. (2026-07-23: Raspi OS is now Bookworm,
+  which blocks system-wide pip installs — needed a venv, `README.md`/`CLAUDE.md` updated.
+  `requirements.txt` was also missing `pyserial`, a hard dependency of pymavlink's serial backend —
+  without it the bridge thread crashed on startup with `ModuleNotFoundError: No module named
+  'serial'`. Fixed; installed clean.)
+- [ ] AP up: `raspi/ap-setup/install.sh` run once, `hostapd.conf` passphrase changed from default, AP visible from a phone/laptop, DHCP lease obtained. (Not attempted this session — remote/SSH only, no phone in hand.)
+- [x] `FC_PORT=/dev/serial0 FC_BAUD=57600 uvicorn server:app --host 0.0.0.0 --port 8000` (from `raspi/`) starts without error, connects to FC. (2026-07-23: confirmed after the `pyserial` fix above. Also found `raspi/sync-to-pi.sh` only ever synced `raspi/` — `server.py` expects `web/` as a sibling directory and would fail `StaticFiles` mount without it. Fixed to sync both.)
+- [x] From a WS client, send `{"type":"arm"}` / `{"type":"disarm"}` / `{"type":"control",...}` and confirm FC responds with props off. (2026-07-23: exercised over a plain Python `websockets` script, not a browser — arm/disarm/mode/control messages all accepted with no server errors, and telemetry's `armed` field reflected disarm correctly. **Did not visually/audibly confirm props-off arm behavior (motor beep) — no one was physically present at the airframe during this remote session.** Treat this box as protocol-level only; do a hands-on repeat before trusting it fully.)
+- [x] Telemetry JSON streams back over the same socket at a reasonable rate. (2026-07-23: initially `battery_voltage`/`alt` came back `null` even with the FC connected — root cause: the bridge never sent `REQUEST_DATA_STREAM`, so the FC only ever pushed unsolicited `HEARTBEAT`. Added an explicit `REQUEST_DATA_STREAM` request (`MAV_DATA_STREAM_ALL` @ 4Hz) to both `mavlink_bridge.py` and `bench_test.py`. After the fix, confirmed live: `battery_voltage=24.05`, `battery_remaining=78%`, `alt≈0`, `gps_fix_type=0`/`satellites_visible=0` (expected, no GPS module).)
 - [ ] Repeat the Phase 0 failsafe drill through the service: kill `server.py` (or the whole Pi's WiFi), confirm FC-side RTL/Land within `FS_GCS_TIMEOUT`.
 
 ## Phase 2/3 — full stack via PWA
+
+**2026-07-23 — mode dropdown offered GPS-dependent modes on a no-GPS airframe.** `web/index.html`'s
+`#mode-select` listed LOITER/GUIDED/RTL alongside STABILIZE/ALT_HOLD/LAND — the first three all need
+a position estimate per CLAUDE.md, which this airframe cannot produce. Removed; dropdown now only
+offers STABILIZE/ALT_HOLD/LAND. Bumped the service worker's `CACHE_NAME` so a browser that already
+cached the old shell picks up the fix on next load instead of serving stale HTML.
 
 - [ ] Connect a phone/tablet to the `drone-control` AP, load `http://192.168.4.1:8000/` (or whatever host:port `server.py` binds).
 - [ ] Status bar shows CONNECTED, HUD populates (armed state, mode, battery, GPS, alt).
