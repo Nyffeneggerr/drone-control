@@ -34,11 +34,40 @@
       <option value="ALT_HOLD">ALT_HOLD</option>
       <option value="LAND">LAND</option>
     </select>
+    <button id="btn-trim-toggle" class="btn">TRIM</button>
+  </div>
+
+  <div id="trim-panel" class="hidden">
+    <div class="trim-row">
+      <span class="trim-label">Roll</span>
+      <button class="btn trim-btn" data-trim="x" data-dir="-1">−</button>
+      <span id="trim-x-value" class="trim-value">0</span>
+      <button class="btn trim-btn" data-trim="x" data-dir="1">+</button>
+    </div>
+    <div class="trim-row">
+      <span class="trim-label">Pitch</span>
+      <button class="btn trim-btn" data-trim="y" data-dir="-1">−</button>
+      <span id="trim-y-value" class="trim-value">0</span>
+      <button class="btn trim-btn" data-trim="y" data-dir="1">+</button>
+    </div>
+    <div class="trim-row">
+      <span class="trim-label">Yaw</span>
+      <button class="btn trim-btn" data-trim="r" data-dir="-1">−</button>
+      <span id="trim-r-value" class="trim-value">0</span>
+      <button class="btn trim-btn" data-trim="r" data-dir="1">+</button>
+    </div>
+    <button id="btn-trim-reset" class="btn btn-disarm">Reset trims</button>
   </div>
 
   <div id="sticks">
-    <canvas id="stick-left" class="stick" width="200" height="200"></canvas>
-    <canvas id="stick-right" class="stick" width="200" height="200"></canvas>
+    <div class="stick-block">
+      <canvas id="stick-left" class="stick" width="200" height="200"></canvas>
+      <div id="readout-left" class="stick-readout">throttle 0 · yaw 0</div>
+    </div>
+    <div class="stick-block">
+      <canvas id="stick-right" class="stick" width="200" height="200"></canvas>
+      <div id="readout-right" class="stick-readout">roll 0 · pitch 0</div>
+    </div>
   </div>
 
   <div id="gamepad-indicator" class="hidden">Gamepad connected — virtual sticks disabled</div>

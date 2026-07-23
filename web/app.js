@@ -4,6 +4,9 @@
 const CONTROL_SEND_HZ = 20;
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 10000;
+const TRIM_STEP = 10;
+const TRIM_LIMIT = 150; // cap at 15% of full stick range so trim can't peg an axis on its own
+const TRIM_STORAGE_KEY = 'drone-control-trim';
 
 const leftStick = new VirtualJoystick(document.getElementById('stick-left'), {
   selfCenterX: true,   // yaw snaps back to center
@@ -19,6 +22,56 @@ let ws = null;
 let gamepadIndex = null;
 let reconnectAttempts = 0;
 let reconnectTimer = null;
+
+function loadTrim() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(TRIM_STORAGE_KEY));
+    if (saved) {
+      return {
+        x: clamp(saved.x ?? 0, -TRIM_LIMIT, TRIM_LIMIT),
+        y: clamp(saved.y ?? 0, -TRIM_LIMIT, TRIM_LIMIT),
+        r: clamp(saved.r ?? 0, -TRIM_LIMIT, TRIM_LIMIT),
+      };
+    }
+  } catch {
+    // ignore malformed/absent storage, fall through to zeroed trim
+  }
+  return { x: 0, y: 0, r: 0 };
+}
+
+let trim = loadTrim();
+
+function saveTrim() {
+  localStorage.setItem(TRIM_STORAGE_KEY, JSON.stringify(trim));
+}
+
+function updateTrimDisplay() {
+  document.getElementById('trim-x-value').textContent = trim.x;
+  document.getElementById('trim-y-value').textContent = trim.y;
+  document.getElementById('trim-r-value').textContent = trim.r;
+}
+
+document.querySelectorAll('.trim-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const axis = btn.dataset.trim;
+    const dir = Number(btn.dataset.dir);
+    trim[axis] = clamp(trim[axis] + dir * TRIM_STEP, -TRIM_LIMIT, TRIM_LIMIT);
+    saveTrim();
+    updateTrimDisplay();
+  });
+});
+
+document.getElementById('btn-trim-reset').addEventListener('click', () => {
+  trim = { x: 0, y: 0, r: 0 };
+  saveTrim();
+  updateTrimDisplay();
+});
+
+document.getElementById('btn-trim-toggle').addEventListener('click', () => {
+  document.getElementById('trim-panel').classList.toggle('hidden');
+});
+
+updateTrimDisplay();
 
 function setStatus(state, linkText = '') {
   const bar = document.getElementById('status-bar');
@@ -144,9 +197,24 @@ function readControls() {
   };
 }
 
+function applyTrim(c) {
+  return {
+    x: clamp(c.x + trim.x, -1000, 1000),
+    y: clamp(c.y + trim.y, -1000, 1000),
+    z: c.z,
+    r: clamp(c.r + trim.r, -1000, 1000),
+  };
+}
+
+function updateReadout(c) {
+  document.getElementById('readout-left').textContent = `throttle ${c.z} · yaw ${c.r}`;
+  document.getElementById('readout-right').textContent = `roll ${c.x} · pitch ${c.y}`;
+}
+
 setInterval(() => {
-  const c = readControls();
+  const c = applyTrim(readControls());
   send({ type: 'control', ...c });
+  updateReadout(c);
 }, 1000 / CONTROL_SEND_HZ);
 
 connect();

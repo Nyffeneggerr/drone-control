@@ -92,10 +92,63 @@ html, body {
   z-index: 5;
 }
 
+.stick-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
 .stick {
   background: rgba(255,255,255,0.06);
   border-radius: 50%;
   touch-action: none;
+}
+
+.stick-readout {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: #9aa4b2;
+}
+
+#trim-panel {
+  position: fixed;
+  bottom: 260px;
+  left: 0; right: 0;
+  z-index: 9;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0,0,0,0.45);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0 auto;
+  width: fit-content;
+}
+#trim-panel:not(.hidden) {
+  display: flex;
+}
+
+.trim-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.trim-label {
+  color: #9aa4b2;
+  font-size: 14px;
+  width: 48px;
+}
+
+.trim-value {
+  font-variant-numeric: tabular-nums;
+  width: 36px;
+  text-align: center;
+}
+
+.trim-btn {
+  padding: 4px 12px;
 }
 
 #gamepad-indicator {
